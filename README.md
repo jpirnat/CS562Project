@@ -3,7 +3,7 @@ CS562Project
 
 The CS562 project
 
-This is a repository where we will work on our database project!!!
+This is a repository where we will work on our CS562 project!!!
 
 read input file for relevant fields
 information schema querying
