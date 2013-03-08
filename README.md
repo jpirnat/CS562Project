@@ -12,3 +12,6 @@ get code repository
 
 fetch datatypes for a column in a table
 http://dev.mysql.com/doc/refman/5.0/en/columns-table.html
+
+using Connector/Net library for database calls
+http://zetcode.com/db/mysqlcsharptutorial/
