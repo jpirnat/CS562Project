@@ -15,3 +15,6 @@ http://dev.mysql.com/doc/refman/5.0/en/columns-table.html
 
 using Connector/Net library for database calls
 http://zetcode.com/db/mysqlcsharptutorial/
+
+another tutorial explaining individual methods to use for database queries
+http://www.codeproject.com/Articles/43438/Connect-C-to-MySQL
