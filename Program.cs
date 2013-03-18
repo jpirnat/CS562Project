@@ -11,7 +11,7 @@ namespace CS_562_project
     {
 
         const string is_num_regex = @"[1-9]+_.*";
-        const string aggregation_match = @"('sum'|'min'|'max'|'avg')_.*"; // finish going through all aggregation options
+        const string aggregation_match = @"(sum|min|max|avg|count)_.*"; // finish going through all aggregation options
 
         static void Main(string[] args)
         {
@@ -157,10 +157,12 @@ namespace CS_562_project
                 var num_index = name.IndexOf('_');
                 //var num1 = name.Substring(0, num_index);
                 name = name.Substring(num_index + 1); // remove #_ from name
+                //Console.WriteLine("num match");
 
                 Match aggregation_match_name = Regex.Match(name, aggregation_match, RegexOptions.IgnoreCase);
                 if (aggregation_match_name.Success)
                 {
+                    //Console.WriteLine("aggregation match");
                     // remaining part is in form of sum_something or min_something or ...
                     var aggr_index = name.IndexOf('_');
                     aggregation = name.Substring(0, aggr_index);
@@ -179,6 +181,8 @@ namespace CS_562_project
         private static string database_lookup_type(string name, string aggregation_type="")
         {
             string type = "string"; // default to string type
+
+            //Console.WriteLine("aggregation_type = " + aggregation_type);
 
             if (aggregation_type.Equals("count", StringComparison.CurrentCultureIgnoreCase))
             {
