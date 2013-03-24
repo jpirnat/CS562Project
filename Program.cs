@@ -1,17 +1,33 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
 using System.Text.RegularExpressions;
+using MySql.Data.MySqlClient;
 
 namespace CS_562_project
 {
     class Program
     {
+		
+		private static MySqlConnection connection;
 
         const string is_num_regex = @"[1-9]+_.*";
-        const string aggregation_match = @"(sum|min|max|avg|count)_.*"; // finish going through all aggregation options
+        const string aggregation_match = @"(sum|min|max|avg|count)_.*";
+		
+		private static void initialize_database()
+		{
+			string server = "localhost";
+	        string database = "test_database";
+	        string uid = "root";
+	        string password = "password";
+	        string connectionString;
+	        connectionString = "SERVER=" + server + ";" + "DATABASE=" + 
+			database + ";" + "UID=" + uid + ";" + "PASSWORD=" + password + ";";
+	
+	        connection = new MySqlConnection(connectionString);
+		}
 
         static void Main(string[] args)
         {
@@ -20,6 +36,8 @@ namespace CS_562_project
                 Console.WriteLine("usage: takes 1 argument which is the input file");
                 return;
             }
+			
+			initialize_database();
             
             var reader = new StreamReader(args[0]);
             
@@ -102,7 +120,7 @@ namespace CS_562_project
             }
 
             var class_string_builder = new StringBuilder();
-            class_string_builder.AppendLine("class type {");
+            class_string_builder.AppendLine("class mf_struct {");
             foreach (var pair in class_vars)
             {
                 class_string_builder.Append("\t");
@@ -166,7 +184,7 @@ namespace CS_562_project
                     // remaining part is in form of sum_something or min_something or ...
                     var aggr_index = name.IndexOf('_');
                     aggregation = name.Substring(0, aggr_index);
-                    name = name.Substring(num_index + 1); // remove aggregation_ from name
+                    name = name.Substring(aggr_index + 1); // remove aggregation_ from name
                 }
             }
 
@@ -195,9 +213,40 @@ namespace CS_562_project
 
             // search for name in mysql information schema table here
             // after retrieving result, convert it to the corresponding C# type
+			string query = "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS " +
+				"WHERE table_name = 'sales' and column_name = '"+name+"'";
+			
+			try {
+				connection.Open();
+				MySqlCommand cmd = new MySqlCommand("use test_database", connection);
+				cmd.ExecuteNonQuery();
+				cmd = new MySqlCommand(query, connection);
+				var result = cmd.ExecuteReader();
+				while(result.Read())
+				{
+					type = (string) result["DATA_TYPE"]+"";
+				}
+				connection.Close();
+			}catch(Exception e) {
+				Console.WriteLine("could not open database connection: ");
+				Console.WriteLine(e.Message);
+				return "string";
+			}
+			//Console.WriteLine("database returned "+type+" for "+name);
+			
+			if(type.StartsWith("varchar", StringComparison.CurrentCultureIgnoreCase))
+				type = "string";
+			else if(type.StartsWith("int", StringComparison.CurrentCultureIgnoreCase))
+				type = "int";
+			else if(type.StartsWith("float", StringComparison.CurrentCultureIgnoreCase))
+				type = "double";
+			else if(type.StartsWith("double", StringComparison.CurrentCultureIgnoreCase))
+				type = "double";
+			else
+				type = "string";
 
             return type;
         }
     }
-
 }
+
