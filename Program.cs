@@ -52,7 +52,7 @@ namespace CS_562_project
             reader.ReadLine(); // num_grouping_vars
             var num_grouping_vars = Convert.ToInt32(reader.ReadLine());
             reader.ReadLine(); // grouping_attrs_line
-            var grouping_attrs = reader.ReadLine();
+            string[] grouping_attrs = reader.ReadLine().Split(new string[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
             reader.ReadLine(); // f_vect_line
             var f_vect = reader.ReadLine().Split(new string[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
             reader.ReadLine(); // select_cond_line
@@ -118,12 +118,25 @@ namespace CS_562_project
                     }
                 }
             }
+			
+			var include_string = 
+			@"
+			using System;
+			using System.Collections.Generic;
+			using System.Linq;
+			using System.Text;
+			using System.IO;
+			using System.Text.RegularExpressions;
+			using MySql.Data.MySqlClient;
 
+			".Replace("\t", "");
+			Console.WriteLine(include_string);
+			
             var class_string_builder = new StringBuilder();
             class_string_builder.AppendLine("class mf_struct {");
             foreach (var pair in class_vars)
             {
-                class_string_builder.Append("\t");
+                class_string_builder.Append("\tpublic ");
                 class_string_builder.Append(pair.Value);
                 class_string_builder.Append(" ");
                 class_string_builder.Append(pair.Key);
@@ -133,7 +146,73 @@ namespace CS_562_project
             class_string_builder.AppendLine("}");
 
             Console.WriteLine(class_string_builder.ToString());
+			
+			var main_class_builder = new StringBuilder();
+			main_class_builder.AppendLine("public class output {");
+			main_class_builder.AppendLine("static List<mf_struct> collection = new List<mf_struct>();");
+			main_class_builder.AppendLine(create_retrieve_method(grouping_attrs));
+			main_class_builder.AppendLine(create_main_method());
+			main_class_builder.AppendLine("}");
+			
+			Console.WriteLine(main_class_builder.ToString());
         }
+		
+		/**
+		 * this creates a string containing the code for a static method that will search through 
+		 * the collection based on group attrs. if there is a pre-existing obj, it will be returned
+		 * otherwise, one will be created and initialized
+		 */
+		private static string create_retrieve_method(string[] grouping_attrs)
+		{
+			var builder = new StringBuilder();
+			builder.Append("private static mf_struct fetch_object_from_grouping_vars(");
+			for(int i = 0; i < grouping_attrs.Length; i++)
+			{
+				if(i > 0)
+					builder.Append(", ");
+				builder.Append(database_lookup_type(grouping_attrs[i]));
+				builder.Append(" ");
+				builder.Append(grouping_attrs[i]);
+			}
+			builder.AppendLine(") {");
+			
+			builder.AppendLine("	mf_struct to_return = null;");
+			builder.AppendLine("	foreach (var obj in collection)");
+			builder.AppendLine("	{");
+			foreach(var attr in grouping_attrs)
+			{
+				builder.AppendLine("		if(!(obj."+attr+" == "+attr+")) continue;");
+			}
+			builder.AppendLine("		to_return = obj;");
+			builder.AppendLine("	}");
+			builder.AppendLine("	if (to_return == null)");
+			builder.AppendLine("	{");
+			builder.AppendLine("		to_return = new mf_struct();");
+			builder.AppendLine("		collection.Add(to_return);");
+			
+			/*
+			 * initialization code for mf_struct vars here
+			 */
+			foreach(var attr in grouping_attrs)
+			{
+				builder.AppendLine("		to_return."+attr+" = "+attr+";");
+			}
+			
+			builder.AppendLine("	}");
+			builder.AppendLine("	return to_return;");
+			builder.AppendLine("}");
+			return builder.ToString();
+		}
+		
+		private static string create_main_method()
+		{
+			var main_method_builder = new StringBuilder();
+			main_method_builder.AppendLine("static void Main(string[] args) {");
+			main_method_builder.AppendLine("}");
+			
+			
+			return main_method_builder.ToString();
+		}
 
         /**
          * this class is supposed to transform 1_sum_tax => sum_tax_1
@@ -249,4 +328,3 @@ namespace CS_562_project
         }
     }
 }
-

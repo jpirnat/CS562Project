@@ -1,0 +1,1 @@
+mcs -L . -r:mysql.data.dll -r:mysql.data.entity.dll temp.cs -o temp.exe
