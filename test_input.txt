@@ -1,5 +1,9 @@
+TABLE:
+sales
 SELECT ATTRIBUTE(S):
 cust, 1_sum_quant, 2_sum_quant, 3_sum_quant, 3_avg_quant
+WHERE:
+(result["quant"]>2000) && (result["quant"]<3000) && (result["month"]>6)
 NUMBER OF GROUPING VARIABLES(n):
 3
 GROUPING ATTRIBUTES(V):
