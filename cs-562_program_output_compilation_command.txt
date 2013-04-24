@@ -1,1 +1,2 @@
-mcs -L . -r:mysql.data.dll -r:mysql.data.entity.dll temp.cs -o temp.exe
+mcs -lib:. -r:mysql.data.dll -r:mysql.data.entity.dll -r:mysql.visualstudio.dll -r:mysql.web.dll -r:System.Data.dll temp.cs -out:temp.exe
+
