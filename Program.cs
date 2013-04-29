@@ -454,6 +454,10 @@ catch (Exception e)
 			
 			create_initial_collection.AppendLine("\t\t\tcollection.Add(structure);");
 			create_initial_collection.AppendLine("\t\t}");
+			// TODO: search through count, min, max, and sum dictionaries and if for 0 and fits conditons, then update structure with the rows information
+			// ex: if count contains <0, quant>, output structure.{name_transform(0_count_quant)}++
+			// ex: if min contains <0, month>, 
+			// output if structure.{name_transform(0_min_sum)} > result["month"] -> structure.{name_transform(0_min_sum)} = result["month"]
 			
 			// update fields
 			main_method_builder.AppendLine(create_initial_collection.ToString());
