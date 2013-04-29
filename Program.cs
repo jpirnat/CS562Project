@@ -138,6 +138,30 @@ namespace CS_562_project
             return type;
         }
 		
+		/*
+		 * this method transforms the where clause by adding type information in front of each item. ex: result["quant"] => (int)result["quant"]
+		 */
+		private static string transform_where_clause(string where_clause)
+		{
+			//(result["quant"]>2000) && (result["quant"]<3000) && (result["month"]>6)
+			int pos = 0;
+			while(pos != -1)
+			{
+				pos = where_clause.IndexOf("result[\"", pos);
+				if(pos == -1)
+					continue;
+				int second_pos = where_clause.IndexOf("\"]", pos);
+				string item = where_clause.Substring(pos+8, second_pos-(pos+8));
+				string type = database_lookup_type(item, "");
+				where_clause = where_clause.Insert(pos, "("+type+")");
+				pos = second_pos+1+ ("("+type+")").Length; // pos should now be second_pos+1 + length of inserted text
+				
+				//Console.WriteLine("***where clause transform: "+item +" "+type);
+			}
+			return where_clause;
+		}
+		
+		
 		private static string mysql_connectionString = "";
         private static void initialize_database()
         {
@@ -212,7 +236,9 @@ namespace CS_562_project
             reader.ReadLine(); // select_cond_line
             select_cond = reader.ReadToEnd().Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
 			
-			// TODO: transform where_clause and select_cond according to name transformations.
+			where_clause = transform_where_clause(where_clause);
+			//Console.WriteLine("transformed where_clause: "+where_clause);
+			// TODO: select_cond according to name transformations.
 			// TODO: in select_cond, transform results depending on whether or not item is from query or inside mf_structure
 			
 			// Finished paring input file
@@ -292,6 +318,7 @@ namespace CS_562_project
 				string type = type_dictionary[x];
 				class_builder.Append("\tpublic "+type+" ");
 				class_builder.Append(name_transform(x));
+				// TODO: have auto getter/setter for avg aggregations. check for 0 as well
 				if(type == "int" || type == "float" || type == "double")
 					class_builder.Append(" = 0");
 				else
@@ -301,6 +328,7 @@ namespace CS_562_project
 			class_builder.AppendLine("}");
 			Console.WriteLine(class_builder.ToString());
 			// finish generating class structure
+			
 			
 			var main_class_builder = new StringBuilder();
             main_class_builder.AppendLine("public class output {");
@@ -370,9 +398,8 @@ try
 	while (result.Read())
 	{
 		if (!(" + where_clause + @"))
-        {
-            continue;
-        }";        
+			continue;";
+			
 			string connection_end_code = @"
 	}
 	connection.Close();
@@ -381,12 +408,58 @@ catch (Exception e)
 {
 	Console.WriteLine(""could not open database connection: "");
 	Console.WriteLine(e.Message);
-	return ""string"";
 }
 ";
 			
 			// do all future code inside of a copy of connection_start_code and connection_end_code
-			main_method_builder.AppendLine("Console.WriteLine(\"1 2 3\");");
+			
+			// create initial collections set.
+			main_method_builder.AppendLine(connection_start_code);
+			StringBuilder create_initial_collection = new StringBuilder();
+			create_initial_collection.Append("\t\tmf_struct structure = fetch_object_from_grouping_vars(");
+			for(int i = 0; i < grouping_attrs.Length; i++)
+			{
+				string ga = grouping_attrs[i];
+				create_initial_collection.Append("("+database_lookup_type(ga, "")+")");
+				create_initial_collection.Append("result[\""+ga+"\"]");
+				if(i != grouping_attrs.Length-1)
+					create_initial_collection.Append(", ");
+			}
+			create_initial_collection.AppendLine(");");
+			create_initial_collection.AppendLine("\t\tif(structure == null) {");
+			create_initial_collection.AppendLine("\t\t\tstructure = new mf_struct();");
+			for(int i = 0; i < grouping_attrs.Length; i++)
+			{
+				string ga = grouping_attrs[i];
+				create_initial_collection.AppendLine("\t\t\tstructure."+ga+" = ("+database_lookup_type(ga, "")+") result[\""+ga+"\"];");
+			}
+			
+			foreach(KeyValuePair<int, string> p in min_dictionary)
+			{
+				if(p.Key == 0)
+				{
+					string attr = p.Value;
+					create_initial_collection.AppendLine("\t\t\tstructure."+attr+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
+				}
+			}
+
+			foreach(KeyValuePair<int, string> p in max_dictionary)
+			{
+				if(p.Key == 0)
+				{
+					string attr = p.Value;
+					create_initial_collection.AppendLine("\t\t\tstructure."+attr+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
+				}
+			}
+			
+			create_initial_collection.AppendLine("\t\t\tcollection.Add(structure);");
+			create_initial_collection.AppendLine("\t\t}");
+			
+			// update fields
+			main_method_builder.AppendLine(create_initial_collection.ToString());
+			main_method_builder.AppendLine(connection_end_code);
+			
+			//main_method_builder.AppendLine("Console.WriteLine(\"1 2 3\");");
             main_method_builder.AppendLine("}");
 
             return main_method_builder.ToString();
