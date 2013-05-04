@@ -9,7 +9,10 @@ using MySql.Data.MySqlClient;
 
 /* database cs562
  * user cs562user
- * password cs562password */
+ * password cs562password 
+ * 
+ * create table sales (cust varchar(50), prod varchar(50), day int, month int, year int, state int, quant int);
+ */
 
 /*
 
@@ -26,10 +29,9 @@ cust
 F-VECT([F]):
 1_sum_quant, 2_sum_quant, 3_sum_quant, 3_avg_quant
 SELECT CONDITION-VECT([s]):
-1.state='NY'
-2.state='NJ'
-3.state='CT'
-
+result["1.state"]=="NY"
+result["2.state"]=="NJ"
+result["3.state"]=="CT"
 */
 
 namespace CS_562_project
@@ -143,6 +145,9 @@ namespace CS_562_project
 		 */
 		private static string transform_where_clause(string where_clause)
 		{
+			if(where_clause.Trim() == "")
+				return "true"; // ensures all cases pass
+			
 			//(result["quant"]>2000) && (result["quant"]<3000) && (result["month"]>6)
 			int pos = 0;
 			while(pos != -1)
@@ -159,6 +164,52 @@ namespace CS_562_project
 				//Console.WriteLine("***where clause transform: "+item +" "+type);
 			}
 			return where_clause;
+		}
+		
+		/*
+		 * this method transforms the select clause by adding type information in front of each item. 
+		 * ex: result["quant"] => (int)result["quant"]
+		 * ex: structure["1_sum_quant"] => ((int)structure.sum_quant_1)
+		 */
+		private static string transform_select_clause(string select_clause_string)
+		{
+			if(select_clause_string.Trim() == "")
+			{
+				return "true";
+			}
+			
+			int pos = 0;
+			while(pos != -1)
+			{
+				pos = select_clause_string.IndexOf("result[\"", pos);
+				if(pos == -1)
+					continue;
+				int second_pos = select_clause_string.IndexOf("\"]", pos);
+				string item = select_clause_string.Substring(pos+8, second_pos-(pos+8));
+				string type = database_lookup_type(item, "");
+				select_clause_string = select_clause_string.Insert(pos, "("+type+")");
+				pos = second_pos+1+ ("("+type+")").Length; // pos should now be second_pos+1 + length of inserted text
+			}
+			
+			pos = 0;
+			while(pos != -1)
+			{
+				pos = select_clause_string.IndexOf("structure[\"", pos);
+				if(pos == -1)
+					continue;
+				int second_pos = select_clause_string.IndexOf("\"]", pos);
+				string item = select_clause_string.Substring(pos+11, second_pos-(pos+11));
+				
+				// name transform item and grab correct type
+				string type = type_lookup(item);
+				string replacement = "(("+type+")structure."+name_transform(item)+")";
+				
+				select_clause_string.Remove(pos, second_pos-pos);
+				select_clause_string.Insert(pos, replacement);
+				pos = pos+1+replacement.Length;
+			}
+			
+			return select_clause_string;
 		}
 		
 		
@@ -234,12 +285,21 @@ namespace CS_562_project
             f_vect = reader.ReadLine().Split(new string[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
             
             reader.ReadLine(); // select_cond_line
-            select_cond = reader.ReadToEnd().Split(new string[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            select_cond = reader.ReadToEnd().Split(new string[] { "\n" });
+			if(num_grouping_vars != select_cond.GetLength())
+			{
+				Console.WriteLine("/*not enough select statement lines. need one for each grouping variable with blank lines allowed*/");
+				// TODO: exit here
+			}
+			else
+			{
+				for(int i = 0; i < select_cond.GetLength(); i++)
+				{
+					select_cond[i] = transform_select_clause(select_cond[i]);
+				}
+			}
 			
 			where_clause = transform_where_clause(where_clause);
-			//Console.WriteLine("transformed where_clause: "+where_clause);
-			// TODO: select_cond according to name transformations.
-			// TODO: in select_cond, transform results depending on whether or not item is from query or inside mf_structure
 			
 			// Finished paring input file
 			
@@ -426,6 +486,7 @@ catch (Exception e)
 					create_initial_collection.Append(", ");
 			}
 			create_initial_collection.AppendLine(");");
+			// handle structure not already added case
 			create_initial_collection.AppendLine("\t\tif(structure == null) {");
 			create_initial_collection.AppendLine("\t\t\tstructure = new mf_struct();");
 			for(int i = 0; i < grouping_attrs.Length; i++)
@@ -471,4 +532,5 @@ catch (Exception e)
 
 	}		
 }
+
 
