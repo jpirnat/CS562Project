@@ -11,7 +11,7 @@ using MySql.Data.MySqlClient;
  * user cs562user
  * password cs562password 
  * 
- * create table sales (cust varchar(50), prod varchar(50), day int, month int, year int, state int, quant int);
+ * create table sales (cust varchar(50), prod varchar(50), day int, month int, year int, state varchar(50), quant int);
  */
 
 /*
@@ -285,17 +285,20 @@ namespace CS_562_project
             f_vect = reader.ReadLine().Split(new string[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
             
             reader.ReadLine(); // select_cond_line
-            select_cond = reader.ReadToEnd().Split(new string[] { "\n" });
-			if(num_grouping_vars != select_cond.GetLength())
+            select_cond = reader.ReadToEnd().Split(new string[] { "\n" }, StringSplitOptions.None);
+			if(num_grouping_vars > select_cond.Length)
 			{
-				Console.WriteLine("/*not enough select statement lines. need one for each grouping variable with blank lines allowed*/");
+				//Console.WriteLine("/*not enough select statement lines. need one for each grouping variable with blank lines allowed*/");
+				//Console.WriteLine("/*numSelectCondExpr = "+select_cond.Length+"*/");
+				//Console.WriteLine("/*numGroupingVars = "+num_grouping_vars+"*/");
 				// TODO: exit here
 			}
 			else
 			{
-				for(int i = 0; i < select_cond.GetLength(); i++)
+				for(int i = 0; i < select_cond.Length; i++)
 				{
 					select_cond[i] = transform_select_clause(select_cond[i]);
+					//Console.WriteLine("/*transformed select clause #"+i+" = "+select_cond[i]+"*/");
 				}
 			}
 			
@@ -519,18 +522,118 @@ catch (Exception e)
 			// ex: if count contains <0, quant>, output structure.{name_transform(0_count_quant)}++
 			// ex: if min contains <0, month>, 
 			// output if structure.{name_transform(0_min_sum)} > result["month"] -> structure.{name_transform(0_min_sum)} = result["month"]
+			foreach(String s in create_updater_code(0))
+				create_initial_collection.AppendLine("\t\t"+s);
 			
 			// update fields
 			main_method_builder.AppendLine(create_initial_collection.ToString());
 			main_method_builder.AppendLine(connection_end_code);
+			
+			// finished with initial creation code
+			
+			// build up for loops for grouping variables
+			for(int i = 0; i < num_grouping_vars; i++)
+			{
+				StringBuilder sb = new StringBuilder();
+				
+				sb.AppendLine(connection_start_code);
+				sb.AppendLine(string.Format("\t\tif(!( {0} )) continue;", select_cond[i]));
+				
+				sb.Append("\t\tmf_struct structure = fetch_object_from_grouping_vars(");
+				for(int j = 0; j < grouping_attrs.Length; j++)
+				{
+					string ga = grouping_attrs[j];
+					sb.Append("("+database_lookup_type(ga, "")+")");
+					sb.Append("result[\""+ga+"\"]");
+					if(j != grouping_attrs.Length-1)
+						sb.Append(", ");
+				}
+				sb.AppendLine(");");
+				
+				foreach(String s in create_updater_code(i+1))
+				{
+					sb.AppendLine("\t\t"+s);
+				}
+				sb.AppendLine(connection_end_code);
+				
+				main_method_builder.AppendLine(sb.ToString());
+			}
 			
 			//main_method_builder.AppendLine("Console.WriteLine(\"1 2 3\");");
             main_method_builder.AppendLine("}");
 
             return main_method_builder.ToString();
         }
-
+		
+		private static List<string> create_updater_code(int key)
+		{
+			List<string> code = new List<string>();
+			foreach(KeyValuePair<int, string> pair in min_dictionary)
+			{
+				if(pair.Key == key)
+					code.Add(create_min_updater(key, pair.Value));
+			}
+			
+			foreach(KeyValuePair<int, string> pair in max_dictionary)
+			{
+				if(pair.Key == key)
+					code.Add(create_max_updater(key, pair.Value));
+			}
+			
+			foreach(KeyValuePair<int, string> pair in count_dictionary)
+			{
+				if(pair.Key == key)
+					code.Add(create_count_updater(key, pair.Value));
+			}
+			
+			foreach(KeyValuePair<int, string> pair in sum_dictionary)
+			{
+				if(pair.Key == key)
+					code.Add(create_sum_updater(key, pair.Value));
+			}
+			
+			return code;
+		}
+		
+		private static string create_min_updater(int key, string attribute)
+		{
+			string attr_string = ""+key+"_min_"+attribute;
+			attr_string = name_transform(attr_string);
+			string type = database_lookup_type(attribute, "");
+			string format_string = "if( (({0})structure.{1}) > (({2})result[\"{3}\"]) ) structure.{4} = (({5})result[\"{6}\"]);";
+			string output = string.Format(format_string, type, attr_string, type, attribute, attr_string, type, attribute);
+			return output;
+		}
+		
+		
+		private static string create_sum_updater(int key, string attribute)
+		{
+			string attr_string = ""+key+"_sum_"+attribute;
+			attr_string = name_transform(attr_string);
+			string type = database_lookup_type(attribute, "");
+			string format_string = "structure.{0} += (({1})result[\"{2}\"]);";
+			string output = string.Format(format_string, attr_string, type, attribute);
+			return output;
+		}
+		
+		private static string create_count_updater(int key, string attribute)
+		{
+			string attr_string = ""+key+"_count_"+attribute;
+			attr_string = name_transform(attr_string);
+			string format_string = "structure.{0}++;";
+			string output = string.Format(format_string, attr_string);
+			return output;
+		}
+		
+		private static string create_max_updater(int key, string attribute)
+		{
+			string attr_string = ""+key+"_max_"+attribute;
+			attr_string = name_transform(attr_string);
+			string type = database_lookup_type(attribute, "");
+			string format_string = "if( (({0})structure.{1}) < (({2})result[\"{3}\"]) ) structure.{4} = (({5})result[\"{6}\"]);";
+			string output = string.Format(format_string, type, attr_string, type, attribute, attr_string, type, attribute);
+			return output;
+		}
 	}		
 }
-
 

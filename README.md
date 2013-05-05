@@ -21,23 +21,9 @@ http://www.codeproject.com/Articles/43438/Connect-C-to-MySQL
 
 
 Left for us to do:
-handle case of #_count_* (essentially just replace * with word STAR)
-
-fix where clause comparisions concerning unspecified type. search where clause string for all instances of result[ and then find matching ].  replace inner text with name transformed equivalent. then change it into the form of ((type) result[""] ) to ensure proper handling of different object types
-
-
-for select clause, it would probably be easier to write the input just like we did the where clause with result[""]
-
-there are 2 types of statements to watch out for in the select clause
-
-1.state = ""
-1.sales < 2_avg_sales.
-
-One condition relies on data from the database query. the other relies on precalculated values.
-
-We could write both like result["1_state"] and result["2_avg_sales"]. Then we doing the previous transformation like we did in the where clause we could just check to see if the desired value is in the mf_struct. if it is, then change result["x"] to current_object.x
-
-Alternatively, we could have a distinction between . and the _
-the input would instead be result["1.state"] and result["2_avg_sales"]. if the result value starts with #. then we know it relies on the current database transaction. if its an underscore instead, then we would replace result["2_avg_sales"] with current_object.avg_sales_2
-
-Both solutions should work without too much effort
+when generating mf_struct code, if its an avg aggregation then generate getter method {if (count == 0) then return 0 else return sum/count}
+	could optionally do this in pretty printing
+do pretty printing of collections objects at very end
+handle NULL case? would have to add a boolean for each possible null object value and check if boolean beforehand
+clean up code
+test!!!
