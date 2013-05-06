@@ -204,8 +204,8 @@ namespace CS_562_project
 				string type = type_lookup(item);
 				string replacement = "(("+type+")structure."+name_transform(item)+")";
 				
-				select_clause_string.Remove(pos, second_pos-pos);
-				select_clause_string.Insert(pos, replacement);
+				select_clause_string = select_clause_string.Remove(pos, second_pos-pos+2);
+				select_clause_string = select_clause_string.Insert(pos, replacement);
 				pos = pos+1+replacement.Length;
 			}
 			
@@ -326,13 +326,28 @@ namespace CS_562_project
 						if(!structure_items.Contains(sum_str))
 						   structure_items.Add(sum_str);
 					}
+					else
+						structure_items.Add(name);
 				}
-				
-				structure_items.Add(name);
+				else
+					structure_items.Add(name);
+			}
+			
+			for(int i = 0; i < num_grouping_vars; i++)
+			{
+				// add existence booleans. 
+				// if set to false then no items matched the grouping specification
+				structure_items.Add("EXISTANCE_"+(i+1));
 			}
 			
             foreach (var x in structure_items)
             {
+				if(x.StartsWith("EXISTANCE_"))
+				{
+					type_dictionary.Add(x, "bool");
+					continue;
+				}
+				
                 string type = "string"; // default placeholder type of string
                 type = type_lookup(x);  // turn varchar(50) => string and Date => DateTime
                 type_dictionary.Add(x, type);
@@ -381,9 +396,11 @@ namespace CS_562_project
 				string type = type_dictionary[x];
 				class_builder.Append("\tpublic "+type+" ");
 				class_builder.Append(name_transform(x));
-				// TODO: have auto getter/setter for avg aggregations. check for 0 as well
+
 				if(type == "int" || type == "float" || type == "double")
 					class_builder.Append(" = 0");
+				else if(type == "bool")
+					class_builder.Append(" = false");
 				else
 					class_builder.Append(" = \"\"");
 				class_builder.AppendLine(";");
@@ -399,9 +416,99 @@ namespace CS_562_project
 			main_class_builder.AppendLine("private static MySqlConnection connection = new MySqlConnection(\""+mysql_connectionString+"\");");
             main_class_builder.AppendLine(create_retrieve_method(grouping_attrs));
             main_class_builder.AppendLine(create_main_method());
+			main_class_builder.AppendLine(create_pretty_printing());
             main_class_builder.AppendLine("}");
 
             Console.WriteLine(main_class_builder.ToString());
+		}
+		
+		/*
+		 * TODO: create pretty printing method code here and then invoke this method in the main class
+		 */
+		private static string create_pretty_printing()
+		{
+			/*
+			 * create int array to hold size needed by each column
+			 * set default size of each to size of column_name (ex: 0_sum_count => 11)
+			 * for each object in collections
+			 * 	if not aggregation, update array with max size needed
+			 * 	else if aggregation of 0_
+			 * 		if avg then calculate avg if available (null otherwise)
+			 * 		else update array with avg
+			 * else if #_
+			 * 	check existance boolean. if not true then all values are 0
+			 * 	update array with value (avg => null if count == 0)
+			 * 
+			 * finally after gathering all size info, print everything out
+			 */
+			
+			StringBuilder sb = new StringBuilder();
+			/*
+			// create array to hold all variables
+			sb.AppendLine("// pretty printing code below");
+			sb.AppendLine("int[] size_array = new int["+select_vars.Length+"];");
+			for(int i = 0; i < select_vars.Length; i++)
+			{
+				// initialize array with length of names
+				sb.AppendLine("size_array["+i+"] = \""+select_vars[i]+"\".Length;");
+			}
+			sb.AppendLine("for(int i = 0; i < collections.Length; i++) {");
+			for(int i = 0; i < select_vars.Length; i++)
+			{
+				string variable = select_vars[i];
+				if(Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
+				{
+					string[] comps = extract_aggregate_name_components(variable);
+					if(comps[0] == "0" && comps[1] != "avg")
+					{
+						string format_string = "size_array[{0}] = max(size_array[{1}], collections[{2}].{3});";
+						if(type_lookup(variable) != "string")
+							sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
+						else
+							sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)+".Length"));
+					}
+					else if(comps[0] == "0" && comps[1] == "avg")
+					{
+						// 4 is length of null
+						string format_str = "if (collection[{0}].{1} == 0) size_array[{0}] = max(size_array[{0}], 4);" +
+							"\nelse size_array[{0}] = max(size_array[{0}], collection[{0}].{2}*1.0/collection[{0}].{1});";
+						sb.AppendLine(string.Format(format_str, i, name_transform(comps[0]+"_count_"+comps[2]), name_transform(comps[0]+"_sum_"+comps[2])));
+					}
+					else if(comps[0] != "0")
+					{
+						// only check if existence true (found matching case)
+						sb.AppendLine("if (collections[i].existence_"+comps[0]+") {");
+						if(comps[1] == "avg")
+						{
+							string format_str = "if (collection[{0}].{1} == 0) size_array[{0}] = max(size_array[{0}], 4);" +
+							"\nelse size_array[{0}] = max(size_array[{0}], collection[{0}].{2}*1.0/collection[{0}].{1});";
+							sb.AppendLine(string.Format(format_str, i, name_transform(comps[0]+"_count_"+comps[2]), name_transform(comps[0]+"_sum_"+comps[2])));
+						}
+						else
+						{
+							string format_string = "size_array[{0}] = max(size_array[{1}], collections[{2}].{3});";
+							if(type_lookup(variable) != "string")
+								sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
+							else
+								sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)+".Length"));
+						}
+						// the 4 is the length of the word NULL
+						sb.AppendLine(string.Format("} else {size_array[{0}] = max(size_array[{1}], 4);}", i, i));
+					}
+				}
+				else
+				{
+					string format_string = "size_array[{0}] = max(size_array[{1}], collections[{2}].{3});";
+					if(type_lookup(variable) != "string")
+						sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
+					else
+						sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)+".Length"));
+				}
+			}
+			sb.AppendLine("}");
+			
+			*/
+			return sb.ToString();
 		}
 		
 		/**
@@ -518,7 +625,7 @@ catch (Exception e)
 			
 			create_initial_collection.AppendLine("\t\t\tcollection.Add(structure);");
 			create_initial_collection.AppendLine("\t\t}");
-			// TODO: search through count, min, max, and sum dictionaries and if for 0 and fits conditons, then update structure with the rows information
+			// search through count, min, max, and sum dictionaries and if for 0 and fits conditons, then update structure with the rows information
 			// ex: if count contains <0, quant>, output structure.{name_transform(0_count_quant)}++
 			// ex: if min contains <0, month>, 
 			// output if structure.{name_transform(0_min_sum)} > result["month"] -> structure.{name_transform(0_min_sum)} = result["month"]
@@ -537,7 +644,6 @@ catch (Exception e)
 				StringBuilder sb = new StringBuilder();
 				
 				sb.AppendLine(connection_start_code);
-				sb.AppendLine(string.Format("\t\tif(!( {0} )) continue;", select_cond[i]));
 				
 				sb.Append("\t\tmf_struct structure = fetch_object_from_grouping_vars(");
 				for(int j = 0; j < grouping_attrs.Length; j++)
@@ -549,6 +655,23 @@ catch (Exception e)
 						sb.Append(", ");
 				}
 				sb.AppendLine(");");
+				
+				sb.AppendLine(string.Format("\t\tif(!( {0} )) continue;", select_cond[i]));
+				
+				sb.AppendLine("\t\tif(!structure.existance_"+(i+1)+") {");
+				sb.AppendLine("\t\t\tstructure.existance_"+(i+1)+" = true;");
+				foreach(KeyValuePair<int, string> pair in min_dictionary)
+				{
+					if(pair.Key == i+1)
+						sb.AppendLine("\t\t\t"+create_min_updater(pair.Key, pair.Value));
+				}
+				
+				foreach(KeyValuePair<int, string> pair in max_dictionary)
+				{
+					if(pair.Key == i+1)
+						sb.AppendLine("\t\t\t"+create_max_updater(pair.Key, pair.Value));
+				}
+				sb.AppendLine("\t\t}");
 				
 				foreach(String s in create_updater_code(i+1))
 				{
