@@ -443,71 +443,144 @@ namespace CS_562_project
 			 */
 			
 			StringBuilder sb = new StringBuilder();
-			/*
 			// create array to hold all variables
 			sb.AppendLine("// pretty printing code below");
-			sb.AppendLine("int[] size_array = new int["+select_vars.Length+"];");
+			sb.AppendLine("private static int max(int a, int b) { if(a < b) return b; else return a; }");
+			sb.AppendLine("private static string pretty_print(string s) { return s; }");
+			sb.AppendLine("private static string pretty_print(int i) { return \"\"+i; }");
+			sb.AppendLine("private static string pretty_print(double d) { return string.Format(\"{0:0.00}\", d); }");
+			
+			sb.AppendLine("private static void pretty_print() {");
+			sb.AppendLine("\tint[] size_array = new int["+select_vars.Length+"];");
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				// initialize array with length of names
-				sb.AppendLine("size_array["+i+"] = \""+select_vars[i]+"\".Length;");
+				sb.AppendLine("\tsize_array["+i+"] = \""+select_vars[i]+"\".Length;");
 			}
-			sb.AppendLine("for(int i = 0; i < collections.Length; i++) {");
+			sb.AppendLine("\tfor(int i = 0; i < collection.Count; i++) {");
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				string variable = select_vars[i];
-				if(Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
+				if(!Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
 				{
+					string format_string = "\t\tsize_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}).Length);";
+					sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
+				}
+				else
+				{
+					// handle aggregation cases here
 					string[] comps = extract_aggregate_name_components(variable);
 					if(comps[0] == "0" && comps[1] != "avg")
 					{
-						string format_string = "size_array[{0}] = max(size_array[{1}], collections[{2}].{3});";
-						if(type_lookup(variable) != "string")
-							sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
-						else
-							sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)+".Length"));
+						string format_string = "size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}).Length);";
+						sb.AppendLine("\t\t"+string.Format(format_string, i, i, i, name_transform(variable)));
 					}
 					else if(comps[0] == "0" && comps[1] == "avg")
 					{
 						// 4 is length of null
-						string format_str = "if (collection[{0}].{1} == 0) size_array[{0}] = max(size_array[{0}], 4);" +
-							"\nelse size_array[{0}] = max(size_array[{0}], collection[{0}].{2}*1.0/collection[{0}].{1});";
-						sb.AppendLine(string.Format(format_str, i, name_transform(comps[0]+"_count_"+comps[2]), name_transform(comps[0]+"_sum_"+comps[2])));
+						string count_str = comps[0]+"_count_"+comps[2];
+						string sum_str = comps[0]+"_sum_"+comps[2];
+						string format_str1 = "if (collection[{0}].{1} == 0) size_array[{2}] = max(size_array[{3}], 4);";
+						sb.AppendLine("\t\t"+string.Format(format_str1, i, name_transform(count_str), i, i));
+						string format_str2 = "else size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}*1.0/collection[{4}].{5}).Length);";
+						sb.AppendLine("\t\t"+string.Format(format_str2, i, i, i, name_transform(sum_str), i, name_transform(count_str)));
 					}
-					else if(comps[0] != "0")
+					else
 					{
-						// only check if existence true (found matching case)
-						sb.AppendLine("if (collections[i].existence_"+comps[0]+") {");
-						if(comps[1] == "avg")
+						sb.AppendLine("\t\tif (collection[i].existance_"+comps[0]+") {");
+						if(comps[1] != "avg")
 						{
-							string format_str = "if (collection[{0}].{1} == 0) size_array[{0}] = max(size_array[{0}], 4);" +
-							"\nelse size_array[{0}] = max(size_array[{0}], collection[{0}].{2}*1.0/collection[{0}].{1});";
-							sb.AppendLine(string.Format(format_str, i, name_transform(comps[0]+"_count_"+comps[2]), name_transform(comps[0]+"_sum_"+comps[2])));
+							string format_string = "size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}).Length);";
+							
+							sb.AppendLine("\t\t\t"+string.Format(format_string, i, i, i, name_transform(variable)));
+							
 						}
 						else
 						{
-							string format_string = "size_array[{0}] = max(size_array[{1}], collections[{2}].{3});";
-							if(type_lookup(variable) != "string")
-								sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
-							else
-								sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)+".Length"));
+							// 4 is length of null
+							string count_str = comps[0]+"_count_"+comps[2];
+							string sum_str = comps[0]+"_sum_"+comps[2];
+							string format_str1 = "if (collection[{0}].{1} == 0) size_array[{2}] = max(size_array[{3}], 4);";
+							sb.AppendLine("\t\t\t"+string.Format(format_str1, i, name_transform(count_str), i, i));
+							string format_str2 = "else size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}*1.0/collection[{4}].{5}).Length);";
+							sb.AppendLine("\t\t\t"+string.Format(format_str2, i, i, i, name_transform(sum_str), i, name_transform(count_str)));
 						}
-						// the 4 is the length of the word NULL
-						sb.AppendLine(string.Format("} else {size_array[{0}] = max(size_array[{1}], 4);}", i, i));
+						sb.AppendLine("\t\t}");
+						// 4 is the length of "NULL"
+						sb.AppendLine("\t\t"+string.Format("else size_array[{0}] = max(size_array[{1}], 4);", i, i));
+					}
+				}
+			}
+			sb.AppendLine("\t}"); // for loop end
+			
+			// TODO: do actual printing and padding here
+			for(int i = 0; i < select_vars.Length; i++)
+			{
+				string variable = select_vars[i];
+				string format_string = "";
+				if(Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
+				{
+					string[] comps = extract_aggregate_name_components(variable);
+					if(database_lookup_type(comps[2]) != "string")
+					{
+						format_string = "Console.Write(\"{0}\".PadLeft(size_array[{1}]));";
+					}
+					else
+					{
+						format_string = "Console.Write(\"{0}\".PadRight(size_array[{1}]));";
 					}
 				}
 				else
 				{
-					string format_string = "size_array[{0}] = max(size_array[{1}], collections[{2}].{3});";
-					if(type_lookup(variable) != "string")
-						sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
+					if(database_lookup_type(variable) != "string")
+						format_string = "Console.Write(\"{0}\".PadLeft(size_array[{1}]));";
 					else
-						sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)+".Length"));
+						format_string = "Console.Write(\"{0}\".PadRight(size_array[{1}]));";
 				}
+				sb.AppendLine("\t"+string.Format(format_string, variable, i));
+				sb.AppendLine("\tConsole.Write(\" \");");
 			}
-			sb.AppendLine("}");
+			sb.AppendLine("\tConsole.WriteLine(\"\");");
 			
-			*/
+			sb.AppendLine("\tforeach(var structure in collection) {"); // todo: check existance_ bool here
+			for(int i = 0; i < select_vars.Length; i++)
+			{
+				string variable = select_vars[i];
+				string format_string = "";
+				if(Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
+				{
+					string[] comps = extract_aggregate_name_components(variable);
+					if(database_lookup_type(comps[2]) != "string")
+					{
+						format_string = "Console.Write(pretty_print(structure.{0}).PadLeft(size_array[{1}]));";
+					}
+					else
+					{
+						format_string = "Console.Write(pretty_print(structure.{0}).PadRight(size_array[{1}]));";
+					}
+				}
+				else
+				{
+					if(database_lookup_type(variable) != "string")
+						format_string = "Console.Write(pretty_print(structure.{0}).PadLeft(size_array[{1}]));";
+					else
+						format_string = "Console.Write(pretty_print(structure.{0}).PadRight(size_array[{1}]));";
+				}
+				if(!Regex.IsMatch(variable, @"^[0-9]+_avg_.*"))
+					sb.AppendLine("\t\t"+string.Format(format_string, name_transform(variable), i));
+				else
+				{
+					string[] comps = extract_aggregate_name_components(variable);
+					// TODO handle avg case here
+					sb.AppendLine("\t\t"+string.Format(format_string, name_transform(variable), i));
+				}
+				sb.AppendLine("\t\tConsole.Write(\" \");");
+			}
+			sb.AppendLine("\t\tConsole.WriteLine(\"\");");
+			sb.AppendLine("\t}");
+			
+			
+			sb.AppendLine("}"); // method end
 			return sb.ToString();
 		}
 		
@@ -610,7 +683,8 @@ catch (Exception e)
 				if(p.Key == 0)
 				{
 					string attr = p.Value;
-					create_initial_collection.AppendLine("\t\t\tstructure."+attr+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
+					string var_name = name_transform(""+p.Key+"_min_"+p.Value);
+					create_initial_collection.AppendLine("\t\t\tstructure."+var_name+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
 				}
 			}
 
@@ -619,7 +693,8 @@ catch (Exception e)
 				if(p.Key == 0)
 				{
 					string attr = p.Value;
-					create_initial_collection.AppendLine("\t\t\tstructure."+attr+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
+					string var_name = name_transform(""+p.Key+"_max_"+p.Value);
+					create_initial_collection.AppendLine("\t\t\tstructure."+var_name+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
 				}
 			}
 			
@@ -663,13 +738,23 @@ catch (Exception e)
 				foreach(KeyValuePair<int, string> pair in min_dictionary)
 				{
 					if(pair.Key == i+1)
-						sb.AppendLine("\t\t\t"+create_min_updater(pair.Key, pair.Value));
+					{
+						//sb.AppendLine("\t\t\t"+create_min_updater(pair.Key, pair.Value));
+						string attr = pair.Value;
+						string var_name = name_transform(""+pair.Key+"_min_"+pair.Value);
+						create_initial_collection.AppendLine("\t\t\tstructure."+var_name+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
+					}
 				}
 				
 				foreach(KeyValuePair<int, string> pair in max_dictionary)
 				{
 					if(pair.Key == i+1)
-						sb.AppendLine("\t\t\t"+create_max_updater(pair.Key, pair.Value));
+					{
+						//sb.AppendLine("\t\t\t"+create_max_updater(pair.Key, pair.Value));
+						string attr = pair.Value;
+						string var_name = name_transform(""+pair.Key+"_max_"+pair.Value);
+						create_initial_collection.AppendLine("\t\t\tstructure."+var_name+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
+					}
 				}
 				sb.AppendLine("\t\t}");
 				
