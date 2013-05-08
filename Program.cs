@@ -445,10 +445,17 @@ namespace CS_562_project
 			StringBuilder sb = new StringBuilder();
 			// create array to hold all variables
 			sb.AppendLine("// pretty printing code below");
+			sb.AppendLine("private static int sum_array(int[] arr) { int total=0; for(int i = 0; i < arr.Length; i++) total += arr[i]; return total; }");
 			sb.AppendLine("private static int max(int a, int b) { if(a < b) return b; else return a; }");
+			sb.AppendLine("private static string add_padding(string s, int pad_size) { return s.PadRight(pad_size); }");
+			sb.AppendLine("private static string add_padding(double s, int pad_size) { return (\"\"+s).PadLeft(pad_size); }");
+			sb.AppendLine("private static string add_padding(int s, int pad_size) { return (\"\"+s).PadLeft(pad_size); }");
 			sb.AppendLine("private static string pretty_print(string s) { return s; }");
+			sb.AppendLine("private static string pretty_print_padded(string s, int p) { return s.PadRight(p); }");
 			sb.AppendLine("private static string pretty_print(int i) { return \"\"+i; }");
+			sb.AppendLine("private static string pretty_print_padded(int i, int p) { return (\"\"+i).PadLeft(p); }");
 			sb.AppendLine("private static string pretty_print(double d) { return string.Format(\"{0:0.00}\", d); }");
+			sb.AppendLine("private static string pretty_print_padded(double d, int p) { return string.Format(\"{0:0.00}\", d).PadLeft(p); }");
 			
 			sb.AppendLine("private static void pretty_print() {");
 			sb.AppendLine("\tint[] size_array = new int["+select_vars.Length+"];");
@@ -461,121 +468,139 @@ namespace CS_562_project
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				string variable = select_vars[i];
+				
 				if(!Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
 				{
-					string format_string = "\t\tsize_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}).Length);";
-					sb.AppendLine(string.Format(format_string, i, i, i, name_transform(variable)));
+					string format_string = "\t\tsize_array[{0}] = max(size_array[{1}], pretty_print(collection[i].{2}).Length);";
+					sb.AppendLine(string.Format(format_string, i, i, name_transform(variable)));
 				}
 				else
 				{
 					// handle aggregation cases here
 					string[] comps = extract_aggregate_name_components(variable);
-					if(comps[0] == "0" && comps[1] != "avg")
+					if(comps[1] != "avg")
 					{
-						string format_string = "size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}).Length);";
-						sb.AppendLine("\t\t"+string.Format(format_string, i, i, i, name_transform(variable)));
-					}
-					else if(comps[0] == "0" && comps[1] == "avg")
-					{
-						// 4 is length of null
-						string count_str = comps[0]+"_count_"+comps[2];
-						string sum_str = comps[0]+"_sum_"+comps[2];
-						string format_str1 = "if (collection[{0}].{1} == 0) size_array[{2}] = max(size_array[{3}], 4);";
-						sb.AppendLine("\t\t"+string.Format(format_str1, i, name_transform(count_str), i, i));
-						string format_str2 = "else size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}*1.0/collection[{4}].{5}).Length);";
-						sb.AppendLine("\t\t"+string.Format(format_str2, i, i, i, name_transform(sum_str), i, name_transform(count_str)));
+						string format_string = "size_array[{0}] = max(size_array[{1}], pretty_print(collection[i].{2}).Length);";
+						string formatted = string.Format(format_string, i, i, name_transform(variable));
+						if(comps[0] == "0")
+							sb.AppendLine("\t\t"+formatted);
+						else
+						{
+							sb.AppendLine("\t\tif (collection[i].existance_"+comps[0]+") {");
+							sb.AppendLine("\t\t\t"+formatted);
+							sb.AppendLine("\t\t} else size_array["+i+"] = max(size_array["+i+"], 4);");
+						}
 					}
 					else
 					{
-						sb.AppendLine("\t\tif (collection[i].existance_"+comps[0]+") {");
-						if(comps[1] != "avg")
+						// handle avg case here
+						string count_str = name_transform(comps[0]+"_count_"+comps[2]);
+						string sum_str = name_transform(comps[0]+"_sum_"+comps[2]);
+						string format_str1 = "if (collection[i].{0} == 0) size_array[{1}] = max(size_array[{2}], 4);";
+						string format_str2 = "else size_array[{0}] = max(size_array[{1}], pretty_print(collection[i].{2}*1.0/collection[i].{3}).Length);";
+						string formatted1 = string.Format(format_str1, count_str, i, i);
+						string formatted2 = string.Format(format_str2, i, i, sum_str, count_str);
+						
+						if(comps[0] == "0")
 						{
-							string format_string = "size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}).Length);";
-							
-							sb.AppendLine("\t\t\t"+string.Format(format_string, i, i, i, name_transform(variable)));
-							
+							sb.AppendLine("\t\t"+formatted1);
+							sb.AppendLine("\t\t"+formatted2);
 						}
 						else
 						{
-							// 4 is length of null
-							string count_str = comps[0]+"_count_"+comps[2];
-							string sum_str = comps[0]+"_sum_"+comps[2];
-							string format_str1 = "if (collection[{0}].{1} == 0) size_array[{2}] = max(size_array[{3}], 4);";
-							sb.AppendLine("\t\t\t"+string.Format(format_str1, i, name_transform(count_str), i, i));
-							string format_str2 = "else size_array[{0}] = max(size_array[{1}], pretty_print(collection[{2}].{3}*1.0/collection[{4}].{5}).Length);";
-							sb.AppendLine("\t\t\t"+string.Format(format_str2, i, i, i, name_transform(sum_str), i, name_transform(count_str)));
+							sb.AppendLine("\t\tif (collection[i].existance_"+comps[0]+") {");
+							sb.AppendLine("\t\t\t"+formatted1);
+							sb.AppendLine("\t\t\t"+formatted2);
+							sb.AppendLine("\t\t} else size_array["+i+"] = max(size_array["+i+"], 4);");
 						}
-						sb.AppendLine("\t\t}");
-						// 4 is the length of "NULL"
-						sb.AppendLine("\t\t"+string.Format("else size_array[{0}] = max(size_array[{1}], 4);", i, i));
 					}
 				}
 			}
 			sb.AppendLine("\t}"); // for loop end
 			
-			// TODO: do actual printing and padding here
+			// do actual printing and padding here
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				string variable = select_vars[i];
-				string format_string = "";
-				if(Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
-				{
-					string[] comps = extract_aggregate_name_components(variable);
-					if(database_lookup_type(comps[2]) != "string")
-					{
-						format_string = "Console.Write(\"{0}\".PadLeft(size_array[{1}]));";
-					}
-					else
-					{
-						format_string = "Console.Write(\"{0}\".PadRight(size_array[{1}]));";
-					}
-				}
+				string type = type_lookup(variable);
+				string format_string = "Console.Write(\"{0}\".Pad{1}(size_array[{2}]));";
+				string padding;
+				if(type != "string")
+					padding = "Left";
 				else
-				{
-					if(database_lookup_type(variable) != "string")
-						format_string = "Console.Write(\"{0}\".PadLeft(size_array[{1}]));";
-					else
-						format_string = "Console.Write(\"{0}\".PadRight(size_array[{1}]));";
-				}
-				sb.AppendLine("\t"+string.Format(format_string, variable, i));
-				sb.AppendLine("\tConsole.Write(\" \");");
+					padding = "Right";
+				sb.AppendLine("\t"+string.Format(format_string, variable, padding, i));
+				sb.AppendLine("\tConsole.Write(\"|\");");
 			}
 			sb.AppendLine("\tConsole.WriteLine(\"\");");
+			
+			sb.AppendLine("for(int i = 0; i < size_array.Length; i++)");
+			sb.AppendLine("{");
+			sb.AppendLine("Console.Write(\"\".PadRight(size_array[i]).Replace(' ', '-'));");
+			sb.AppendLine("Console.Write(\"|\");");
+			sb.AppendLine("}");
+			sb.AppendLine("Console.WriteLine(\"\");");
 			
 			sb.AppendLine("\tforeach(var structure in collection) {"); // todo: check existance_ bool here
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				string variable = select_vars[i];
-				string format_string = "";
-				if(Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
+				string print_str = "Console.Write(pretty_print_padded({0}, size_array["+i+"]));";
+				if(!Regex.IsMatch(variable, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
 				{
-					string[] comps = extract_aggregate_name_components(variable);
-					if(database_lookup_type(comps[2]) != "string")
-					{
-						format_string = "Console.Write(pretty_print(structure.{0}).PadLeft(size_array[{1}]));";
-					}
-					else
-					{
-						format_string = "Console.Write(pretty_print(structure.{0}).PadRight(size_array[{1}]));";
-					}
+					sb.AppendLine("\t\t"+string.Format(print_str, "structure."+name_transform(variable)));
 				}
 				else
 				{
-					if(database_lookup_type(variable) != "string")
-						format_string = "Console.Write(pretty_print(structure.{0}).PadLeft(size_array[{1}]));";
-					else
-						format_string = "Console.Write(pretty_print(structure.{0}).PadRight(size_array[{1}]));";
-				}
-				if(!Regex.IsMatch(variable, @"^[0-9]+_avg_.*"))
-					sb.AppendLine("\t\t"+string.Format(format_string, name_transform(variable), i));
-				else
-				{
 					string[] comps = extract_aggregate_name_components(variable);
-					// TODO handle avg case here
-					sb.AppendLine("\t\t"+string.Format(format_string, name_transform(variable), i));
+					if(comps[1] == "avg")
+					{
+						// handle avg here
+						string count_str = name_transform(comps[0]+"_count_"+comps[2]);
+						string sum_str = name_transform(comps[0]+"_sum_"+comps[2]);
+						string calculation_string = "structure.{0}*1.0/structure.{1}";
+						calculation_string = string.Format(calculation_string, sum_str, count_str);
+						
+						string calc_print1 = "\t\tif (structure."+count_str+" != 0)";
+						string calc_print2 = "\t\t\t"+string.Format(print_str, calculation_string);
+						string calc_print3 = "\t\telse Console.Write(\"null\".PadLeft(size_array["+i+"]));";
+						
+						if(comps[0] == "0")
+						{
+							sb.AppendLine(calc_print1);
+							sb.AppendLine(calc_print2);
+							sb.AppendLine(calc_print3);
+						}
+						else
+						{
+							sb.AppendLine("\t\tif (structure.existance_"+comps[0]+") {");
+							sb.AppendLine("\t"+calc_print1);
+							sb.AppendLine("\t"+calc_print2);
+							sb.AppendLine("\t"+calc_print3);
+							sb.Append("\t\t} ");
+							sb.AppendLine(calc_print3.Substring(2));
+						}
+					}
+					else
+					{
+						if(comps[0] == "0")
+							sb.AppendLine("\t\t"+string.Format(print_str, "structure."+name_transform(variable)));
+						else
+						{
+							sb.AppendLine("\t\tif (!structure.existance_"+comps[0]+")");
+							string type = type_lookup(variable);
+							string other_print = "Console.Write(\"null\".Pad{0}(size_array["+i+"]));";
+							if(type == "string")
+								sb.AppendLine("\t\t\t"+string.Format(other_print, "Right")); // manually handle padding
+							else
+								sb.AppendLine("\t\t\t"+string.Format(other_print, "Left")); // manually handle padding
+							sb.AppendLine("\t\telse " + string.Format(print_str, "structure."+name_transform(variable)));
+						}
+					}
 				}
-				sb.AppendLine("\t\tConsole.Write(\" \");");
+				sb.AppendLine("\t\tConsole.Write(\"|\");");
 			}
+			
 			sb.AppendLine("\t\tConsole.WriteLine(\"\");");
 			sb.AppendLine("\t}");
 			
@@ -768,6 +793,7 @@ catch (Exception e)
 			}
 			
 			//main_method_builder.AppendLine("Console.WriteLine(\"1 2 3\");");
+			main_method_builder.AppendLine("pretty_print();");
             main_method_builder.AppendLine("}");
 
             return main_method_builder.ToString();
