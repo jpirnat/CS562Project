@@ -237,11 +237,11 @@ namespace CS_562_project
 		static List<string> structure_items = new List<string>();
 		// maps column names to data types
 		static Dictionary<string, string> type_dictionary = new Dictionary<string, string>(); // maps 1_sum_quant -> int
-		static Dictionary<int, string> count_dictionary = new Dictionary<int, string>(); // this dictionary holds all count aggregates needed to be calculated
-		static Dictionary<int, string> min_dictionary = new Dictionary<int, string>(); // this dictionary holds all min aggregates needed to be calculated
-		static Dictionary<int, string> max_dictionary = new Dictionary<int, string>(); // this dictionary holds all max aggregates needed to be calculated
-		static Dictionary<int, string> avg_dictionary = new Dictionary<int, string>(); // this dictionary holds all avg aggregates needed to be calculated
-		static Dictionary<int, string> sum_dictionary = new Dictionary<int, string>(); // this dictionary holds all sum aggregates needed to be calculated
+		static List<KeyValuePair<int, string>> count_dictionary = new List<KeyValuePair<int, string>>(); // this dictionary holds all count aggregates needed to be calculated
+		static List<KeyValuePair<int, string>> min_dictionary = new List<KeyValuePair<int, string>>(); // this dictionary holds all min aggregates needed to be calculated
+		static List<KeyValuePair<int, string>> max_dictionary = new List<KeyValuePair<int, string>>(); // this dictionary holds all max aggregates needed to be calculated
+		static List<KeyValuePair<int, string>> avg_dictionary = new List<KeyValuePair<int, string>>(); // this dictionary holds all avg aggregates needed to be calculated
+		static List<KeyValuePair<int, string>> sum_dictionary = new List<KeyValuePair<int, string>>(); // this dictionary holds all sum aggregates needed to be calculated
 		static string table_name = "sales"; // default value of sales
 		static string[] select_vars; // what is being output to the user
 		static string where_clause; // where condition
@@ -346,6 +346,12 @@ namespace CS_562_project
 					structure_items.Add(name);
 			}
 			
+			foreach(string x in grouping_attrs)
+			{
+				if(!structure_items.Contains(x.ToLower().Trim()))
+					structure_items.Add(x.ToLower().Trim());
+			}
+			
 			foreach(string x in f_vect)
 			{
 				string name = x.ToLower().Trim();
@@ -398,16 +404,27 @@ namespace CS_562_project
 				if(Regex.IsMatch(x, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
 				{
 					string[] comps = extract_aggregate_name_components(x);
+					int num = int.Parse(comps[0]);
 					if(comps[1] == "avg")
-						avg_dictionary.Add(int.Parse(comps[0]), comps[2]);
+					{
+						avg_dictionary.Add(new KeyValuePair<int, string>(num, comps[2]));
+					}
 					else if(comps[1] == "count")
-						count_dictionary.Add(int.Parse(comps[0]), comps[2]);
+					{
+						count_dictionary.Add(new KeyValuePair<int, string>(num, comps[2]));
+					}
 					else if(comps[1] == "min")
-						min_dictionary.Add(int.Parse(comps[0]), comps[2]);
+					{
+						min_dictionary.Add(new KeyValuePair<int, string>(num, comps[2]));
+					}
 					else if(comps[1] == "max")
-						max_dictionary.Add(int.Parse(comps[0]), comps[2]);
+					{
+						max_dictionary.Add(new KeyValuePair<int, string>(num, comps[2]));
+					}
 					else if(comps[1] == "sum")
-						sum_dictionary.Add(int.Parse(comps[0]), comps[2]);
+					{
+						sum_dictionary.Add(new KeyValuePair<int, string>(num, comps[2]));
+					}
 				}
             }
 			// finish gathering structure information for each item
@@ -548,8 +565,8 @@ namespace CS_562_project
 				{
 					// handle aggregation cases here
 					string[] comps = extract_aggregate_name_components(variable);
-					if(comps[1] != "avg")
-					{
+					//if(comps[1] != "avg")
+					//{
 						string format_string = "size_array[{0}] = max(size_array[{1}], pretty_print(collection[i].{2}).Length);";
 						string formatted = string.Format(format_string, i, i, name_transform(variable));
 						if(comps[0] == "0")
@@ -560,7 +577,8 @@ namespace CS_562_project
 							sb.AppendLine("\t\t\t"+formatted);
 							sb.AppendLine("\t\t} else size_array["+i+"] = max(size_array["+i+"], 4);");
 						}
-					}
+					//}
+					/*
 					else
 					{
 						// handle avg case here
@@ -584,6 +602,7 @@ namespace CS_562_project
 							sb.AppendLine("\t\t} else size_array["+i+"] = max(size_array["+i+"], 4);");
 						}
 					}
+					*/
 				}
 			}
 			sb.AppendLine("\t}"); // for loop end
@@ -627,7 +646,7 @@ namespace CS_562_project
 				else
 				{
 					string[] comps = extract_aggregate_name_components(variable);
-					
+					/*
 					if(comps[1] == "avg")
 					{
 						// handle avg here
@@ -657,7 +676,7 @@ namespace CS_562_project
 						}
 					}
 					else
-					{
+					{*/
 					
 						if(comps[0] == "0")
 							sb.AppendLine("\t\t"+string.Format(print_str, "structure."+name_transform(variable)));
@@ -672,7 +691,7 @@ namespace CS_562_project
 								sb.AppendLine("\t\t\t"+string.Format(other_print, "Left")); // manually handle padding for null
 							sb.AppendLine("\t\telse " + string.Format(print_str, "structure."+name_transform(variable)));
 						}
-					}
+					//}
 				}
 				sb.AppendLine("\t\tConsole.Write(\"|\");"); // separate columns with '|'
 			}
