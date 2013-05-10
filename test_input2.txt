@@ -1,0 +1,14 @@
+TABLE:
+sales
+SELECT ATTRIBUTE(S):
+cust, prod, 0_avg_quant, 0_min_quant, 0_max_quant, 0_sum_quant, 0_count_quant
+WHERE:
+result["month"]>6
+NUMBER OF GROUPING VARIABLES(n):
+0
+GROUPING ATTRIBUTES(V):
+cust, prod
+F-VECT([F]):
+0_avg_quant, 0_min_quant, 0_max_quant, 0_sum_quant, 0_count_quant
+SELECT CONDITION-VECT([s]):
+

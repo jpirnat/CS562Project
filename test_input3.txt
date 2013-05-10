@@ -1,0 +1,16 @@
+TABLE:
+sales
+SELECT ATTRIBUTE(S):
+cust, state, 1_sum_quant, 2_sum_quant, 3_count_*
+WHERE:
+result["month"]>6
+NUMBER OF GROUPING VARIABLES(n):
+3
+GROUPING ATTRIBUTES(V):
+cust, state
+F-VECT([F]):
+1_sum_quant, 2_sum_quant, 3_count_*
+SELECT CONDITION-VECT([s]):
+result["prod"] == "banana"
+result["prod"] == "apple"
+structure["1_sum_quant"] > structure["2_sum_quant"]
