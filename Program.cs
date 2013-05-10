@@ -38,24 +38,29 @@ namespace CS_562_project
 {
 	public class Program2
 	{
+		// connection used for database
 		private static MySqlConnection connection;
-
+		
+		// simple regex to further analyze select items
         const string is_num_regex = @"[1-9]+_.*";
         const string aggregation_match = @"(sum|min|max|avg|count)_.*";
 		
 		/**
-         * this class is supposed to transform 1_sum_tax => sum_tax_1
+         * this method transforms 1_sum_tax => sum_tax_1
          */
         private static string name_transform(string name)
         {
 			name = name.ToLower().Trim();
+			if(name.EndsWith("*"))
+			{
+				name = name.Replace("*", "STAR");
+			}
+			
 			if(Regex.IsMatch(name, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
 			{
 				var pos = name.IndexOf('_');
 				string start = name.Substring(0, pos);
 				string end = name.Substring(pos+1);
-				if(start == "*")
-					start = "STAR";
 				return end+"_"+start;
 			}
 			else 
@@ -63,7 +68,7 @@ namespace CS_562_project
         }
 		
 		/**
-         * this class is supposed to transform 1_sum_tax => int
+         * this method transforms 1_sum_tax => int
          */
         private static string type_lookup(string name)
         {
@@ -120,7 +125,7 @@ namespace CS_562_project
             }
             catch (Exception e)
             {
-                Console.WriteLine("could not open database connection: ");
+                Console.WriteLine("problem with database connection: ");
                 Console.WriteLine(e.Message);
                 return "string";
             }
@@ -148,7 +153,6 @@ namespace CS_562_project
 			if(where_clause.Trim() == "")
 				return "true"; // ensures all cases pass
 			
-			//(result["quant"]>2000) && (result["quant"]<3000) && (result["month"]>6)
 			int pos = 0;
 			while(pos != -1)
 			{
@@ -179,7 +183,7 @@ namespace CS_562_project
 			}
 			
 			int pos = 0;
-			while(pos != -1)
+			while(pos != -1 && pos <= select_clause_string.Length)
 			{
 				pos = select_clause_string.IndexOf("result[\"", pos);
 				if(pos == -1)
@@ -192,7 +196,7 @@ namespace CS_562_project
 			}
 			
 			pos = 0;
-			while(pos != -1)
+			while(pos != -1 && pos <= select_clause_string.Length)
 			{
 				pos = select_clause_string.IndexOf("structure[\"", pos);
 				if(pos == -1)
@@ -212,8 +216,11 @@ namespace CS_562_project
 			return select_clause_string;
 		}
 		
-		
 		private static string mysql_connectionString = "";
+		
+		/*
+		 * this method creates the MySqlConnection object
+		 */
         private static void initialize_database()
         {
             string mysql_server = "localhost";
@@ -226,25 +233,26 @@ namespace CS_562_project
 
             connection = new MySqlConnection(mysql_connectionString);
         }
-		
+		// stores what is being collected
 		static List<string> structure_items = new List<string>();
+		// maps column names to data types
 		static Dictionary<string, string> type_dictionary = new Dictionary<string, string>(); // maps 1_sum_quant -> int
 		static Dictionary<int, string> count_dictionary = new Dictionary<int, string>(); // this dictionary holds all count aggregates needed to be calculated
 		static Dictionary<int, string> min_dictionary = new Dictionary<int, string>(); // this dictionary holds all min aggregates needed to be calculated
 		static Dictionary<int, string> max_dictionary = new Dictionary<int, string>(); // this dictionary holds all max aggregates needed to be calculated
 		static Dictionary<int, string> avg_dictionary = new Dictionary<int, string>(); // this dictionary holds all avg aggregates needed to be calculated
 		static Dictionary<int, string> sum_dictionary = new Dictionary<int, string>(); // this dictionary holds all sum aggregates needed to be calculated
-		static string table_name = "sales"; // will be overridden in main
-		static string[] select_vars;
-		static string where_clause;
-		static int num_grouping_vars;
-		static string[] grouping_attrs;
-		static string[] f_vect;
-		static string[] select_cond;
+		static string table_name = "sales"; // default value of sales
+		static string[] select_vars; // what is being output to the user
+		static string where_clause; // where condition
+		static int num_grouping_vars; // num grouping variables
+		static string[] grouping_attrs; // grouping attributes
+		static string[] f_vect; // f_vect
+		static string[] select_cond; // conditions for grouping variables
 
 		static void Main(string[] args)
         {
-
+			// create database connections
             initialize_database();
 
             StreamReader reader;
@@ -286,25 +294,28 @@ namespace CS_562_project
             
             reader.ReadLine(); // select_cond_line
             select_cond = reader.ReadToEnd().Split(new string[] { "\n" }, StringSplitOptions.None);
+			// finished reading input file
+			
+			// if not enough select line, generate additional entries
 			if(num_grouping_vars > select_cond.Length)
 			{
-				//Console.WriteLine("/*not enough select statement lines. need one for each grouping variable with blank lines allowed*/");
-				//Console.WriteLine("/*numSelectCondExpr = "+select_cond.Length+"*/");
-				//Console.WriteLine("/*numGroupingVars = "+num_grouping_vars+"*/");
-				// TODO: exit here
+				string[] arr = new string[num_grouping_vars];
+				int i;
+				for(i = 0; i < select_cond.Length; i++)
+					arr[i] = select_cond[i];
+				for(; i < num_grouping_vars; i++)
+					arr[i] = "";
+				select_cond = arr;
 			}
-			else
+			
+			// transform select cond
+			for(int i = 0; i < select_cond.Length; i++)
 			{
-				for(int i = 0; i < select_cond.Length; i++)
-				{
-					select_cond[i] = transform_select_clause(select_cond[i]);
-					//Console.WriteLine("/*transformed select clause #"+i+" = "+select_cond[i]+"*/");
-				}
+				select_cond[i] = transform_select_clause(select_cond[i]);
 			}
 			
+			// transform where clause
 			where_clause = transform_where_clause(where_clause);
-			
-			// Finished paring input file
 			
 			// gather structure information
 			foreach(string x in select_vars)
@@ -321,6 +332,36 @@ namespace CS_562_project
 						string count_str = comps[0]+"_count_"+comps[2];
 						string sum_str = comps[0]+"_sum_"+comps[2];
 						
+						if(!structure_items.Contains(name))
+							structure_items.Add(name);
+						if(!structure_items.Contains(count_str))
+						   structure_items.Add(count_str);
+						if(!structure_items.Contains(sum_str))
+						   structure_items.Add(sum_str);
+					}
+					else
+						structure_items.Add(name);
+				}
+				else
+					structure_items.Add(name);
+			}
+			
+			foreach(string x in f_vect)
+			{
+				string name = x.ToLower().Trim();
+				if(structure_items.Contains(name))
+					continue;
+				
+				if(Regex.IsMatch(name, @"^[0-9]+_(sum|min|max|avg|count)_.*"))
+				{
+					string[] comps = extract_aggregate_name_components(name);
+					if(comps[1] == "avg")
+					{
+						string count_str = comps[0]+"_count_"+comps[2];
+						string sum_str = comps[0]+"_sum_"+comps[2];
+						
+						if(!structure_items.Contains(name))
+							structure_items.Add(name);
 						if(!structure_items.Contains(count_str))
 						   structure_items.Add(count_str);
 						if(!structure_items.Contains(sum_str))
@@ -337,12 +378,13 @@ namespace CS_562_project
 			{
 				// add existence booleans. 
 				// if set to false then no items matched the grouping specification
-				structure_items.Add("EXISTANCE_"+(i+1));
+				structure_items.Add("existance_"+(i+1));
 			}
 			
+			// fill in type dictionary
             foreach (var x in structure_items)
             {
-				if(x.StartsWith("EXISTANCE_"))
+				if(x.StartsWith("existance_"))
 				{
 					type_dictionary.Add(x, "bool");
 					continue;
@@ -396,7 +438,8 @@ namespace CS_562_project
 				string type = type_dictionary[x];
 				class_builder.Append("\tpublic "+type+" ");
 				class_builder.Append(name_transform(x));
-
+				
+				// set values to defaults
 				if(type == "int" || type == "float" || type == "double")
 					class_builder.Append(" = 0");
 				else if(type == "bool")
@@ -405,11 +448,12 @@ namespace CS_562_project
 					class_builder.Append(" = \"\"");
 				class_builder.AppendLine(";");
 			}
+			
 			class_builder.AppendLine("}");
 			Console.WriteLine(class_builder.ToString());
 			// finish generating class structure
 			
-			
+			// generate methods
 			var main_class_builder = new StringBuilder();
             main_class_builder.AppendLine("public class output {");
             main_class_builder.AppendLine("static List<mf_struct> collection = new List<mf_struct>();");
@@ -418,12 +462,33 @@ namespace CS_562_project
             main_class_builder.AppendLine(create_main_method());
 			main_class_builder.AppendLine(create_pretty_printing());
             main_class_builder.AppendLine("}");
-
+			// finish generating methods
+			
             Console.WriteLine(main_class_builder.ToString());
 		}
 		
 		/*
-		 * TODO: create pretty printing method code here and then invoke this method in the main class
+		 * this code goes through all collection structs and calculates the avg
+		 */
+		private static string create_avg_calculation_code(string name)
+		{
+			string[] comps = extract_aggregate_name_components(name);
+			name = name_transform(name);
+			string count_str = comps[0]+"_count_"+comps[2];
+			count_str = name_transform(count_str);
+			string sum_str = comps[0]+"_sum_"+comps[2];
+			sum_str = name_transform(sum_str);
+			StringBuilder sb = new StringBuilder();
+			sb.AppendLine("foreach (var structure in collection) {");
+			sb.AppendLine("\tif(structure."+count_str+" == 0)");
+			sb.AppendLine("\t\tstructure."+name+" = Double.NaN;");
+			sb.AppendLine("\telse structure."+name+" = structure."+sum_str+"*1.0/structure."+count_str+";");
+			sb.AppendLine("}");
+			return sb.ToString();
+		}
+		
+		/*
+		 * generate pretty printing method code here and then invoke this method in the main class
 		 */
 		private static string create_pretty_printing()
 		{
@@ -436,7 +501,7 @@ namespace CS_562_project
 			 * 		if avg then calculate avg if available (null otherwise)
 			 * 		else update array with avg
 			 * else if #_
-			 * 	check existance boolean. if not true then all values are 0
+			 * 	check existance boolean. if not true then all values are null
 			 * 	update array with value (avg => null if count == 0)
 			 * 
 			 * finally after gathering all size info, print everything out
@@ -445,6 +510,8 @@ namespace CS_562_project
 			StringBuilder sb = new StringBuilder();
 			// create array to hold all variables
 			sb.AppendLine("// pretty printing code below");
+			
+			// generate helper methods
 			sb.AppendLine("private static int sum_array(int[] arr) { int total=0; for(int i = 0; i < arr.Length; i++) total += arr[i]; return total; }");
 			sb.AppendLine("private static int max(int a, int b) { if(a < b) return b; else return a; }");
 			sb.AppendLine("private static string add_padding(string s, int pad_size) { return s.PadRight(pad_size); }");
@@ -456,14 +523,17 @@ namespace CS_562_project
 			sb.AppendLine("private static string pretty_print_padded(int i, int p) { return (\"\"+i).PadLeft(p); }");
 			sb.AppendLine("private static string pretty_print(double d) { return string.Format(\"{0:0.00}\", d); }");
 			sb.AppendLine("private static string pretty_print_padded(double d, int p) { return string.Format(\"{0:0.00}\", d).PadLeft(p); }");
+			// finish helper method generation
 			
 			sb.AppendLine("private static void pretty_print() {");
+			// create size array
 			sb.AppendLine("\tint[] size_array = new int["+select_vars.Length+"];");
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				// initialize array with length of names
 				sb.AppendLine("\tsize_array["+i+"] = \""+select_vars[i]+"\".Length;");
 			}
+			// loop through each item in code to calculate correct size
 			sb.AppendLine("\tfor(int i = 0; i < collection.Count; i++) {");
 			for(int i = 0; i < select_vars.Length; i++)
 			{
@@ -517,8 +587,10 @@ namespace CS_562_project
 				}
 			}
 			sb.AppendLine("\t}"); // for loop end
+			// done finding correct length for each column
 			
 			// do actual printing and padding here
+			// print out column names at top
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				string variable = select_vars[i];
@@ -534,6 +606,7 @@ namespace CS_562_project
 			}
 			sb.AppendLine("\tConsole.WriteLine(\"\");");
 			
+			// draw a line with '-' character to separate column names from data
 			sb.AppendLine("for(int i = 0; i < size_array.Length; i++)");
 			sb.AppendLine("{");
 			sb.AppendLine("Console.Write(\"\".PadRight(size_array[i]).Replace(' ', '-'));");
@@ -541,7 +614,8 @@ namespace CS_562_project
 			sb.AppendLine("}");
 			sb.AppendLine("Console.WriteLine(\"\");");
 			
-			sb.AppendLine("\tforeach(var structure in collection) {"); // todo: check existance_ bool here
+			// print out each row according to each items data
+			sb.AppendLine("\tforeach(var structure in collection) {");
 			for(int i = 0; i < select_vars.Length; i++)
 			{
 				string variable = select_vars[i];
@@ -591,14 +665,14 @@ namespace CS_562_project
 							string type = type_lookup(variable);
 							string other_print = "Console.Write(\"null\".Pad{0}(size_array["+i+"]));";
 							if(type == "string")
-								sb.AppendLine("\t\t\t"+string.Format(other_print, "Right")); // manually handle padding
+								sb.AppendLine("\t\t\t"+string.Format(other_print, "Right")); // manually handle padding for null
 							else
-								sb.AppendLine("\t\t\t"+string.Format(other_print, "Left")); // manually handle padding
+								sb.AppendLine("\t\t\t"+string.Format(other_print, "Left")); // manually handle padding for null
 							sb.AppendLine("\t\telse " + string.Format(print_str, "structure."+name_transform(variable)));
 						}
 					}
 				}
-				sb.AppendLine("\t\tConsole.Write(\"|\");");
+				sb.AppendLine("\t\tConsole.Write(\"|\");"); // separate columns with '|'
 			}
 			
 			sb.AppendLine("\t\tConsole.WriteLine(\"\");");
@@ -650,6 +724,9 @@ namespace CS_562_project
 			return x.Split(new char[] {'_'});
 		}
 		
+		/*
+		 * this method create the generated main method code string
+		 */
 		private static string create_main_method()
         {
             var main_method_builder = new StringBuilder();
@@ -674,14 +751,14 @@ try
 }
 catch (Exception e)
 {
-	Console.WriteLine(""could not open database connection: "");
+	Console.WriteLine(""an error occurred: "");
 	Console.WriteLine(e.Message);
 }
 ";
 			
-			// do all future code inside of a copy of connection_start_code and connection_end_code
+			// do all future code inside of a copy of connection_start_code and connection_end_code to handle database interaction
 			
-			// create initial collections set.
+			// create initial collections set: 1 object for every set of grouping variables
 			main_method_builder.AppendLine(connection_start_code);
 			StringBuilder create_initial_collection = new StringBuilder();
 			create_initial_collection.Append("\t\tmf_struct structure = fetch_object_from_grouping_vars(");
@@ -702,6 +779,7 @@ catch (Exception e)
 				string ga = grouping_attrs[i];
 				create_initial_collection.AppendLine("\t\t\tstructure."+ga+" = ("+database_lookup_type(ga, "")+") result[\""+ga+"\"];");
 			}
+			// for new objects, set default min and max (if calculated) to this rows current values
 			
 			foreach(KeyValuePair<int, string> p in min_dictionary)
 			{
@@ -722,23 +800,30 @@ catch (Exception e)
 					create_initial_collection.AppendLine("\t\t\tstructure."+var_name+" = ("+database_lookup_type(attr, "")+") result[\""+attr+"\"];");
 				}
 			}
-			
+			// add new object to collection
 			create_initial_collection.AppendLine("\t\t\tcollection.Add(structure);");
 			create_initial_collection.AppendLine("\t\t}");
+			
+			
 			// search through count, min, max, and sum dictionaries and if for 0 and fits conditons, then update structure with the rows information
 			// ex: if count contains <0, quant>, output structure.{name_transform(0_count_quant)}++
-			// ex: if min contains <0, month>, 
-			// output if structure.{name_transform(0_min_sum)} > result["month"] -> structure.{name_transform(0_min_sum)} = result["month"]
+			// ex: if min contains <0, month>,
+			//         output if structure.{name_transform(0_min_sum)} > result["month"] -> structure.{name_transform(0_min_sum)} = result["month"]
 			foreach(String s in create_updater_code(0))
 				create_initial_collection.AppendLine("\t\t"+s);
 			
 			// update fields
 			main_method_builder.AppendLine(create_initial_collection.ToString());
 			main_method_builder.AppendLine(connection_end_code);
+			foreach(var s in structure_items)
+			{
+				if(s.StartsWith("0_avg_"))
+					main_method_builder.AppendLine(create_avg_calculation_code(s));
+			}
 			
 			// finished with initial creation code
 			
-			// build up for loops for grouping variables
+			// build up for loops for grouping variables. 1 for loop for each variable
 			for(int i = 0; i < num_grouping_vars; i++)
 			{
 				StringBuilder sb = new StringBuilder();
@@ -756,10 +841,12 @@ catch (Exception e)
 				}
 				sb.AppendLine(");");
 				
-				sb.AppendLine(string.Format("\t\tif(!( {0} )) continue;", select_cond[i]));
+				sb.AppendLine(string.Format("\t\tif(!( {0} )) continue;", select_cond[i])); // check select condition
 				
 				sb.AppendLine("\t\tif(!structure.existance_"+(i+1)+") {");
 				sb.AppendLine("\t\t\tstructure.existance_"+(i+1)+" = true;");
+				// if first object for this select condition, initialize min and max values
+				
 				foreach(KeyValuePair<int, string> pair in min_dictionary)
 				{
 					if(pair.Key == i+1)
@@ -783,22 +870,32 @@ catch (Exception e)
 				}
 				sb.AppendLine("\t\t}");
 				
+				// update all values for this grouping variable (add 1 since grouping vars 1 indexed not 0 indexed)
 				foreach(String s in create_updater_code(i+1))
 				{
 					sb.AppendLine("\t\t"+s);
 				}
 				sb.AppendLine(connection_end_code);
 				
+				foreach(var s in structure_items)
+				{
+					if(s.StartsWith(""+(i+1)+"_avg_"))
+						sb.AppendLine(create_avg_calculation_code(s));
+				}
+				
 				main_method_builder.AppendLine(sb.ToString());
 			}
-			
-			//main_method_builder.AppendLine("Console.WriteLine(\"1 2 3\");");
+			// at end of main method, call pretty_print()
 			main_method_builder.AppendLine("pretty_print();");
             main_method_builder.AppendLine("}");
 
             return main_method_builder.ToString();
         }
 		
+		/*
+		 * this method creates update strings for all present aggregations
+		 * ex, if key == 0 and count_dictionary has an entry with a key of 0, then output structure.count_{value}_{key}++
+		 */
 		private static List<string> create_updater_code(int key)
 		{
 			List<string> code = new List<string>();
@@ -829,6 +926,9 @@ catch (Exception e)
 			return code;
 		}
 		
+		/*
+		 * create code that updates the min of a structure
+		 */
 		private static string create_min_updater(int key, string attribute)
 		{
 			string attr_string = ""+key+"_min_"+attribute;
@@ -839,7 +939,9 @@ catch (Exception e)
 			return output;
 		}
 		
-		
+		/*
+		 * create code that updates the sum of a structure
+		 */
 		private static string create_sum_updater(int key, string attribute)
 		{
 			string attr_string = ""+key+"_sum_"+attribute;
@@ -850,6 +952,9 @@ catch (Exception e)
 			return output;
 		}
 		
+		/*
+		 * create code that updates the count of a structure
+		 */
 		private static string create_count_updater(int key, string attribute)
 		{
 			string attr_string = ""+key+"_count_"+attribute;
@@ -859,6 +964,9 @@ catch (Exception e)
 			return output;
 		}
 		
+		/*
+		 * create code that updates the max of a structure
+		 */
 		private static string create_max_updater(int key, string attribute)
 		{
 			string attr_string = ""+key+"_max_"+attribute;
