@@ -627,6 +627,7 @@ namespace CS_562_project
 				else
 				{
 					string[] comps = extract_aggregate_name_components(variable);
+					
 					if(comps[1] == "avg")
 					{
 						// handle avg here
@@ -657,6 +658,7 @@ namespace CS_562_project
 					}
 					else
 					{
+					
 						if(comps[0] == "0")
 							sb.AppendLine("\t\t"+string.Format(print_str, "structure."+name_transform(variable)));
 						else
